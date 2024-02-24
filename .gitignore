@@ -1,0 +1,5 @@
+# Мусор.
+*.iml
+.idea/
+.gradle/
+build/
