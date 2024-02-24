@@ -6,15 +6,14 @@ import java.security.ProtectionDomain;
 import java.util.Arrays;
 
 public class ServiceTransformer implements ClassFileTransformer {
-    private boolean transformed = false;
-    private final ClassPool classPool = ClassPool.getDefault();
+    private static boolean transformed = false;
 
     @Override
     public byte[] transform(ClassLoader loader, String className, Class<?> classBeingRedefined, ProtectionDomain protectionDomain, byte[] classfileBuffer) {
         if (transformed) return classfileBuffer;
 
         try {
-            CtClass _class = classPool.get(className);
+            CtClass _class = ClassPool.getDefault().get(className);
             String constructor = Arrays.toString(_class.getDeclaredConstructors());
 
             if (!Methods.checkConstructor(constructor)) {
