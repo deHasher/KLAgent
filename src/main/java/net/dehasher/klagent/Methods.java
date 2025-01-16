@@ -1,11 +1,10 @@
-package ru.dehasher.klagent;
+package net.dehasher.klagent;
 
-import javassist.CannotCompileException;
-import javassist.CtClass;
-import javassist.CtField;
-import javassist.CtMethod;
+import javassist.*;
 import java.io.File;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Stream;
 
 public class Methods {
     public static String getBody(String name) {
@@ -41,31 +40,67 @@ public class Methods {
                 "}";
     }
 
-    public static void optifine(CtClass _class) throws CannotCompileException {
+    public static void injectOFFields(CtClass _class) throws CannotCompileException {
         _class.addField(CtField.make("public Boolean imageFound = null;", _class));
         _class.addField(CtField.make("public boolean pipeline = false;", _class));
     }
 
-    public static boolean checkConstructor(String constructor) {
-        return constructor.contains("(Ljava/io/File;Ljava/lang/String;") && constructor.contains(";ZLjava/lang/Runnable;)");
+    public static boolean isSkinClass(CtClass ctClass) {
+        CtField[] ctFields;
+        try {
+            ctFields = ctClass.getDeclaredFields();
+        } catch (Throwable ignored) {
+            return false;
+        }
+
+        if (Stream.of(ctFields).filter(Objects::nonNull).filter(ctField -> {
+            try {
+                return ctField.getType().getName().equals(int.class.getName()) && Modifier.isStatic(ctField.getModifiers()) && Modifier.isFinal(ctField.getModifiers());
+            } catch (Throwable ignored) {}
+            return false;
+        }).count() < 3) return false;
+
+        AtomicInteger size64 = new AtomicInteger(0);
+        AtomicInteger size32 = new AtomicInteger(0);
+        Stream.of(ctFields).filter(Objects::nonNull).forEach(ctField -> {
+            try {
+                if (ctField.getType().getName().equals(int.class.getName()) && Modifier.isStatic(ctField.getModifiers()) && Modifier.isFinal(ctField.getModifiers())) {
+                    Object object;
+                    try {
+                        object = ctField.getConstantValue();
+                    } catch (Throwable t) {
+                        return;
+                    }
+                    if (object == null) return;
+                    int count = (int) object;
+                    if (count == 64) size64.incrementAndGet();
+                    if (count == 32) size32.incrementAndGet();
+                }
+            } catch (Throwable ignored) {}
+        });
+        return size64.get() == 2 && size32.get() == 1;
     }
 
-    public static boolean checkField(CtField field) {
+    public static boolean isOFField(CtField field) {
         if (field == null) return false;
         return field.getName().equals("imageFound") || field.getName().equals("pipeline");
     }
 
-    public static boolean checkMethod(CtMethod method) {
-        return method != null && method.getName().equals("c");
+    public static boolean checkMethod(CtMethod ctMethod) throws Throwable {
+        return ctMethod.getReturnType() == ctMethod.getParameterTypes()[0];
     }
 
-    public static void clean() {
+    public static void clearTrash() {
         new Thread(() -> {
             try { Thread.sleep(5000); } catch (InterruptedException ignored) {}
             for (File file : Objects.requireNonNull(new File(".").listFiles())) {
                 if (!file.getName().endsWith(".class")) continue;
-                if (!file.delete()) System.out.println("Failed to delete file " + file.getName());
+                if (!file.delete()) info("Failed to delete file " + file.getName());
             }
         }).start();
+    }
+
+    public static void info(String info) {
+        System.out.println(info);
     }
 }
